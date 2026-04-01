@@ -2,27 +2,20 @@
 set -euo pipefail
 
 # =============================================================================
-# launch.sh  —  Embedded Linux Build Environment Launcher
+# docker/launch.sh  —  Airoha SDK Docker Launcher
 #
-# Builds and runs a container with toolchains for Buildroot, Yocto, OpenWrt, etc.
+# Builds and runs the Airoha build-environment container.
 # Usage:
-#   ./launch.sh              # interactive menu
-#   ./launch.sh 18.04        # non-interactive
-#   ./launch.sh 22.04
+#   ./docker/launch.sh              # interactive menu
+#   ./docker/launch.sh 18.04        # non-interactive
+#   ./docker/launch.sh 22.04
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE_DIR="$(dirname "$SCRIPT_DIR")"   # one level up from docker/
 
-SUPPORTED_VERSIONS=("18.04" "22.04" "25.04")
+SUPPORTED_VERSIONS=("18.04" "22.04")
 DEFAULT_VERSION="22.04"
-
-# Color helpers
-CYAN="63"
-GREEN="42"
-YELLOW="208"
-RED="196"
-BORDER_COLOR="63"
 
 # ---------------------------------------------------------------------------
 # Determine Ubuntu version
@@ -31,32 +24,21 @@ if [ $# -ge 1 ]; then
   UBUNTU_VERSION="$1"
 else
   echo ""
-  gum style \
-    --border rounded \
-    --padding "1 3" \
-    --margin "0 1" \
-    --border-foreground "$BORDER_COLOR" \
-    --foreground "$CYAN" \
-    "🐳  Embedded Linux Build Environment"
-
+  echo "════════════════════════════════════════════════════════════════"
+  echo "  Airoha SDK — Docker Launcher"
+  echo "════════════════════════════════════════════════════════════════"
   echo ""
-
-  CHOICE=$(gum choose \
-    --header "Select Ubuntu base image:" \
-    --cursor "→ " \
-    --selected.foreground "$CYAN" \
-    "18.04  (LTS — legacy projects)" \
-    "22.04  (LTS — recommended)" \
-    "25.04  (non-LTS — latest)")
-
-  case "$CHOICE" in
-    18.04*) UBUNTU_VERSION="18.04" ;;
-    22.04*) UBUNTU_VERSION="22.04" ;;
-    25.04*) UBUNTU_VERSION="25.04" ;;
-    *)
-      gum style --foreground "$YELLOW" "⚠️  No selection made. Using default: $DEFAULT_VERSION"
-      UBUNTU_VERSION="$DEFAULT_VERSION"
-      ;;
+  echo "  Select Ubuntu base image:"
+  echo ""
+  echo "    1) Ubuntu 18.04  (LTS — original SDK requirement)"
+  echo "    2) Ubuntu 22.04  (LTS — recommended)"
+  echo "    3) Ubuntu 25.04  (non-LTS — latest)"
+  echo ""
+  read -rp "  Enter choice [1-3] (default: 2): " CHOICE
+  case "${CHOICE:-2}" in
+    1) UBUNTU_VERSION="18.04" ;;
+    2) UBUNTU_VERSION="22.04" ;;
+    *) echo "  ⚠️  Invalid choice. Using default: $DEFAULT_VERSION"; UBUNTU_VERSION="$DEFAULT_VERSION" ;;
   esac
 fi
 
@@ -67,32 +49,21 @@ for V in "${SUPPORTED_VERSIONS[@]}"; do
 done
 if [ "$VALID" -eq 0 ]; then
   echo ""
-  gum style --foreground "$RED" "❌  Unsupported Ubuntu version: '$UBUNTU_VERSION'"
-  gum style --foreground "$YELLOW" "   Supported: ${SUPPORTED_VERSIONS[*]}"
+  echo "  ❌  Unsupported Ubuntu version: '$UBUNTU_VERSION'"
+  echo "      Supported: ${SUPPORTED_VERSIONS[*]}"
   exit 1
 fi
 
 DOCKERFILE="$SCRIPT_DIR/Dockerfile.ubuntu-${UBUNTU_VERSION}"
-IMAGE_TAG="zbuilder:ubuntu-${UBUNTU_VERSION}"
+IMAGE_TAG="buidroot-builder:ubuntu-${UBUNTU_VERSION}"
 
-# ---------------------------------------------------------------------------
-# Display configuration
-# ---------------------------------------------------------------------------
 echo ""
-gum style \
-  --border normal \
-  --padding "1 2" \
-  --margin "0 1" \
-  --border-foreground "$BORDER_COLOR" \
-  "$(gum format <<EOF
-### Build Configuration
-- **Ubuntu version:** \`$UBUNTU_VERSION\`
-- **Dockerfile:** \`docker/Dockerfile.ubuntu-$UBUNTU_VERSION\`
-- **Image tag:** \`$IMAGE_TAG\`
-- **Workspace:** \`$WORKSPACE_DIR\`
-EOF
-)"
-
+echo "════════════════════════════════════════════════════════════════"
+echo "  Ubuntu version : $UBUNTU_VERSION"
+echo "  Dockerfile     : docker/Dockerfile.ubuntu-${UBUNTU_VERSION}"
+echo "  Image tag      : $IMAGE_TAG"
+echo "  Workspace      : $WORKSPACE_DIR"
+echo "════════════════════════════════════════════════════════════════"
 echo ""
 
 # ---------------------------------------------------------------------------
@@ -100,7 +71,7 @@ echo ""
 # ---------------------------------------------------------------------------
 DOCKER_CMD="docker"
 if ! docker info > /dev/null 2>&1; then
-  gum style --foreground "$YELLOW" "ℹ️  Docker not accessible without sudo — switching to 'sudo -E docker'."
+  echo "  ℹ️  Docker not accessible without sudo — switching to 'sudo -E docker'."
   DOCKER_CMD="sudo -E docker"
 fi
 
@@ -115,7 +86,7 @@ BUILD_NETWORK="${BUILD_NETWORK:-host}"
 case "$PROXY_MODE" in
   auto|on|off) ;;
   *)
-    gum style --foreground "$YELLOW" "⚠️  Invalid PROXY_MODE='$PROXY_MODE'. Using 'auto'."
+    echo "  ⚠️  Invalid PROXY_MODE='$PROXY_MODE'. Using 'auto'."
     PROXY_MODE="auto"
     ;;
 esac
@@ -139,22 +110,13 @@ if [[ "$PROXY_MODE" != "off" ]]; then
 fi
 
 if [[ "$PROXY_MODE" == "on" && ${#PROXY_BUILD_ARGS[@]} -eq 0 ]]; then
-  gum style --foreground "$YELLOW" "⚠️  PROXY_MODE=on but no proxy variables are set in the environment."
+  echo "  ⚠️  PROXY_MODE=on but no proxy variables are set in the environment."
 fi
 
 # ---------------------------------------------------------------------------
 # Build
 # ---------------------------------------------------------------------------
-echo ""
-gum style \
-  --border rounded \
-  --padding "0 2" \
-  --margin "0 1" \
-  --border-foreground "$CYAN" \
-  --foreground "$CYAN" \
-  "🔨  Building image: $IMAGE_TAG"
-echo ""
-
+echo "  → Building image: $IMAGE_TAG"
 DOCKER_BUILDKIT=1 $DOCKER_CMD build \
   --network="$BUILD_NETWORK" \
   "${PROXY_BUILD_ARGS[@]}" \
@@ -165,13 +127,14 @@ DOCKER_BUILDKIT=1 $DOCKER_CMD build \
   "$WORKSPACE_DIR"
 
 echo ""
-gum style --foreground "$GREEN" "✅  Image built: $IMAGE_TAG"
+echo "  ✅  Image built: $IMAGE_TAG"
 echo ""
+
 
 # ---------------------------------------------------------------------------
 # Run
 # ---------------------------------------------------------------------------
-gum style --foreground "$CYAN" "🚀  Launching container (workspace mounted at /workspace) ..."
+echo "  → Launching container (workspace mounted at /workspace) ..."
 echo ""
 
 $DOCKER_CMD run \

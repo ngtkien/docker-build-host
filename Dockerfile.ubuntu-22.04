@@ -17,23 +17,21 @@ ARG ALL_PROXY
 ARG NO_PROXY
 
 # =============================================================================
-# Ubuntu 22.04 — Airoha SDK build environment
+# Ubuntu 22.04 — Embedded Linux build environment (Buildroot, Yocto, OpenWrt)
 # =============================================================================
 
 RUN set -eux; \
-    # Configure apt proxy if provided build args exist
     HP="${http_proxy:-${HTTP_PROXY:-}}"; \
     HPS="${https_proxy:-${HTTPS_PROXY:-${HP:-}}}"; \
     if [ -n "${HP}" ] || [ -n "${HPS}" ]; then \
         printf 'Acquire::http::Proxy "%s";\nAcquire::https::Proxy "%s";\n' "${HP}" "${HPS}" > /etc/apt/apt.conf.d/99proxy; \
     fi; \
     echo 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99force-ipv4; \
-    \
-    # Configure dpkg frontend
     echo "dash dash/sh boolean false" | debconf-set-selections; \
-    dpkg-reconfigure -f noninteractive dash; \
-    \
-    apt-get update; \
+    dpkg-reconfigure -f noninteractive dash
+
+RUN set -eux; \
+    apt-get update && \
     apt-get install -y --no-install-recommends \
         apt-utils \
         autoconf \
@@ -82,8 +80,6 @@ RUN set -eux; \
         locales \
         lz4 \
         mesa-common-dev \
-        mono-complete \
-        mono-devel \
         nano \
         neovim \
         net-tools \
@@ -108,35 +104,37 @@ RUN set -eux; \
         swig \
         texinfo \
         time \
+        tmux \
         u-boot-tools \
         unzip \
         usbutils \
         vim \
         wget \
-        xterm tmux screen\
+        xterm \
         xxd \
         xz-utils \
         zip \
         zlib1g-dev \
-        zstd; \
-    \
-    # Install Python modules
-    pip3 install jsonschema pyelftools PyYAML Mako yamllint; \
-    \
-    # Set up locales
-    locale-gen en_US en_US.UTF-8; \
-    \
-    # Clean up apt caches
-    apt-get clean; \
-    rm -rf /var/lib/apt/lists/*; \
-    rm -f /etc/apt/apt.conf.d/99proxy /etc/apt/apt.conf.d/99force-ipv4
+        zstd \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -f /etc/apt/apt.conf.d/99proxy /etc/apt/apt.conf.d/99force-ipv4
+
+RUN set -eux; \
+    pip3 install --no-cache-dir \
+        jsonschema \
+        Mako \
+        pyelftools \
+        PyYAML \
+        yamllint \
+    && rm -rf /root/.cache/pip
+
+RUN set -eux; \
+    locale-gen en_US en_US.UTF-8
 
 ENV LC_ALL="en_US.UTF-8" \
     LC_CTYPE="en_US.UTF-8" \
     LC_NUMERIC="en_US.UTF-8"
 
-# Create a non-root user 'builder' matching the host UID/GID to avoid
-# permission issues on bind-mounted volumes.
 RUN groupadd -g ${GROUP_ID} builder \
     || groupmod -n builder $(getent group ${GROUP_ID} | cut -d: -f1) && \
     useradd -l -u ${USER_ID} -g ${GROUP_ID} -m -s /bin/bash builder && \
