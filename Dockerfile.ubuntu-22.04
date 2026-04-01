@@ -1,0 +1,148 @@
+FROM amd64/ubuntu:22.04
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG USER_ID=1000
+ARG GROUP_ID=1000
+
+# Proxy arguments
+ARG http_proxy
+ARG https_proxy
+ARG ftp_proxy
+ARG all_proxy
+ARG no_proxy
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG FTP_PROXY
+ARG ALL_PROXY
+ARG NO_PROXY
+
+# =============================================================================
+# Ubuntu 22.04 — Airoha SDK build environment
+# =============================================================================
+
+RUN set -eux; \
+    # Configure apt proxy if provided build args exist
+    HP="${http_proxy:-${HTTP_PROXY:-}}"; \
+    HPS="${https_proxy:-${HTTPS_PROXY:-${HP:-}}}"; \
+    if [ -n "${HP}" ] || [ -n "${HPS}" ]; then \
+        printf 'Acquire::http::Proxy "%s";\nAcquire::https::Proxy "%s";\n' "${HP}" "${HPS}" > /etc/apt/apt.conf.d/99proxy; \
+    fi; \
+    echo 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99force-ipv4; \
+    \
+    # Configure dpkg frontend
+    echo "dash dash/sh boolean false" | debconf-set-selections; \
+    dpkg-reconfigure -f noninteractive dash; \
+    \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        apt-utils \
+        autoconf \
+        automake \
+        bc \
+        bison \
+        build-essential \
+        chrpath \
+        corkscrew \
+        cpio \
+        curl \
+        debianutils \
+        debootstrap \
+        device-tree-compiler \
+        dfu-util \
+        dialog \
+        diffstat \
+        dos2unix \
+        dosfstools \
+        doxygen \
+        fdisk \
+        file \
+        flex \
+        g++-multilib \
+        gawk \
+        gcc \
+        gcc-multilib \
+        gettext \
+        git \
+        git-lfs \
+        help2man \
+        iproute2 \
+        iputils-ping \
+        jq \
+        libacl1 \
+        libc6-dev-i386 \
+        libegl1-mesa \
+        libgnutls28-dev \
+        liblz4-tool \
+        libncurses5-dev \
+        libnl-3-dev \
+        libnl-route-3-dev \
+        libsdl1.2-dev \
+        libssl-dev \
+        libxml-parser-perl \
+        locales \
+        lz4 \
+        mesa-common-dev \
+        mono-complete \
+        mono-devel \
+        nano \
+        neovim \
+        net-tools \
+        pigz \
+        pseudo \
+        pylint \
+        python3 \
+        python3-dev \
+        python3-distutils \
+        python3-git \
+        python3-jinja2 \
+        python3-pexpect \
+        python3-pip \
+        python3-sphinx \
+        python3-subunit \
+        qemu-user-static \
+        repo \
+        rsync \
+        socat \
+        subversion \
+        sudo \
+        swig \
+        texinfo \
+        time \
+        u-boot-tools \
+        unzip \
+        usbutils \
+        vim \
+        wget \
+        xterm tmux screen\
+        xxd \
+        xz-utils \
+        zip \
+        zlib1g-dev \
+        zstd; \
+    \
+    # Install Python modules
+    pip3 install jsonschema pyelftools PyYAML Mako yamllint; \
+    \
+    # Set up locales
+    locale-gen en_US en_US.UTF-8; \
+    \
+    # Clean up apt caches
+    apt-get clean; \
+    rm -rf /var/lib/apt/lists/*; \
+    rm -f /etc/apt/apt.conf.d/99proxy /etc/apt/apt.conf.d/99force-ipv4
+
+ENV LC_ALL="en_US.UTF-8" \
+    LC_CTYPE="en_US.UTF-8" \
+    LC_NUMERIC="en_US.UTF-8"
+
+# Create a non-root user 'builder' matching the host UID/GID to avoid
+# permission issues on bind-mounted volumes.
+RUN groupadd -g ${GROUP_ID} builder \
+    || groupmod -n builder $(getent group ${GROUP_ID} | cut -d: -f1) && \
+    useradd -l -u ${USER_ID} -g ${GROUP_ID} -m -s /bin/bash builder && \
+    echo "builder ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+USER builder
+WORKDIR /workspace
+
+CMD ["/bin/bash"]

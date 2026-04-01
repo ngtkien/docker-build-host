@@ -1,0 +1,82 @@
+FROM ubuntu:18.04
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG USER_ID=1000
+ARG GROUP_ID=1000
+
+
+# Proxy 
+ARG http_proxy
+ARG https_proxy
+ARG ftp_proxy
+ARG all_proxy
+ARG no_proxy
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG FTP_PROXY
+ARG ALL_PROXY
+ARG NO_PROXY
+
+# =============================================================================
+# Ubuntu 18.04 — Airoha SDK build environment
+#
+# Requirements:
+#   - DTC (device-tree-compiler)
+#   - Make > 3.81   (Ubuntu 18.04 ships 4.1)
+#   - OpenSSL 1.1.1 (Ubuntu 18.04 default)
+#   - libssl-dev
+#   - gcc-multilib
+#   - sudo (for FW encryption step)
+# =============================================================================
+
+RUN set -eux; \
+        HP="${http_proxy:-${HTTP_PROXY:-}}"; \
+        HPS="${https_proxy:-${HTTPS_PROXY:-${HP:-}}}"; \
+        if [ -n "${HP}" ] || [ -n "${HPS}" ]; then \
+            printf 'Acquire::http::Proxy "%s";\nAcquire::https::Proxy "%s";\n' "${HP}" "${HPS}" > /etc/apt/apt.conf.d/99proxy; \
+        fi; \
+        apt-get update && apt-get install -y \
+            build-essential \
+            device-tree-compiler \
+            libssl-dev \
+            gcc-multilib \
+            sudo \
+            git \
+            python \
+            python3 \
+            unzip \
+            gawk \
+            wget \
+            file \
+            subversion \
+            libncurses5-dev \
+            zlib1g-dev \
+            libxml-parser-perl \
+            time \
+            rsync \
+            swig \
+            help2man \
+            texinfo \
+            bison \
+            flex \
+            gettext \
+            libnl-3-dev \
+            libnl-route-3-dev \
+            xxd \
+            curl \
+            vim \
+            neovim \
+        && rm -rf /var/lib/apt/lists/* \
+        && rm -f /etc/apt/apt.conf.d/99proxy
+
+# Create a non-root user 'builder' matching the host UID/GID to avoid
+# permission issues on bind-mounted volumes.
+RUN groupadd -g ${GROUP_ID} builder \
+    || groupmod -n builder $(getent group ${GROUP_ID} | cut -d: -f1) && \
+    useradd -l -u ${USER_ID} -g ${GROUP_ID} -m -s /bin/bash builder && \
+    echo "builder ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+USER builder
+WORKDIR /workspace
+
+CMD ["/bin/bash"]
