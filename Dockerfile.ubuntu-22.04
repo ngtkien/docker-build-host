@@ -67,6 +67,7 @@ RUN set -eux; \
         iputils-ping \
         jq \
         libacl1 \
+        libc6-dev \
         libc6-dev-i386 \
         libegl1-mesa \
         libgnutls28-dev \
