@@ -116,6 +116,15 @@ RUN set -eux; \
         zip \
         zlib1g-dev \
         zstd \
+        sharutils \
+        libusb-1.0-0-dev \
+        libusb-dev \
+        libreadline-dev \
+        xz-utils \ 
+        python2 \ 
+        python2-dev \ 
+        sharutils \ 
+        zip \
     && rm -rf /var/lib/apt/lists/* \
     && rm -f /etc/apt/apt.conf.d/99proxy /etc/apt/apt.conf.d/99force-ipv4
 
