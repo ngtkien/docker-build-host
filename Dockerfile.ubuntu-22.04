@@ -126,6 +126,22 @@ RUN set -eux; \
         python2-dev \ 
         sharutils \ 
         zip \
+        libc6-dev-armel-cross \
+        libc6-dev-armhf-cross \
+        libc6-armel-cross \
+        libc6-armhf-cross \
+        libelf-dev \
+        libdw-dev \
+        libunwind-dev \
+        liblzma-dev \
+        libzstd-dev \
+        binutils-dev \
+        libslang2-dev \
+        libperl-dev \
+        libaudit-dev \
+        libcap-dev \
+        libnuma-dev \
+        libiberty-dev \
     && rm -rf /var/lib/apt/lists/* \
     && rm -f /etc/apt/apt.conf.d/99proxy /etc/apt/apt.conf.d/99force-ipv4
 
