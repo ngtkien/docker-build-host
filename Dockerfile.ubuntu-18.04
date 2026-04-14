@@ -37,6 +37,7 @@ RUN set -eux; \
         build-essential \
         curl \
         device-tree-compiler \
+        file \
         flex \
         gawk \
         gcc-multilib \
