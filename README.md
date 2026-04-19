@@ -43,11 +43,15 @@ The old form `./launch.sh 22.04` still launches the generic `base` profile. Use 
 |---|---|---|---|
 | `PROXY_MODE` | `auto`, `on`, `off` | `auto` | Proxy handling for build and run |
 | `BUILD_NETWORK` | `host`, `default` | `host` | Docker network mode during build |
+| `UBUNTU_MIRROR` | apt mirror URL | unset | Override Ubuntu apt mirror for faster first-time package downloads |
+| `AUTO_UBUNTU_MIRROR` | `on`, `off` | `on` | Auto-select a faster mirror when `UBUNTU_MIRROR` is unset |
 | `WORKSPACE_DIR` | host path | parent of this repo | Host directory mounted into `/workspace` |
 | `PROFILE` | `base`, `zephyr`, `esp-idf` | `base` | Default launch profile when not passed as an argument |
 
 ```bash
 PROXY_MODE=on ./launch.sh 22.04
+UBUNTU_MIRROR=http://mirrors.edge.kernel.org/ubuntu ./launch.sh 22.04
+AUTO_UBUNTU_MIRROR=off ./launch.sh 22.04
 WORKSPACE_DIR=$HOME/work/zephyr ./launch.sh zephyr 22.04
 WORKSPACE_DIR=$HOME/work/esp ./launch.sh esp-idf 25.04
 ```

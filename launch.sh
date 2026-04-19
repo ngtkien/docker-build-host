@@ -180,9 +180,13 @@ fi
 # Optional proxy args (works with and without proxy env)
 # PROXY_MODE: auto | on | off (default: auto)
 # BUILD_NETWORK: host | default (default: host)
+# UBUNTU_MIRROR: optional apt mirror URL for faster first-time apt downloads
+# AUTO_UBUNTU_MIRROR: on | off (default: on when UBUNTU_MIRROR is unset)
 # ---------------------------------------------------------------------------
 PROXY_MODE="${PROXY_MODE:-auto}"
 BUILD_NETWORK="${BUILD_NETWORK:-host}"
+UBUNTU_MIRROR="${UBUNTU_MIRROR:-}"
+AUTO_UBUNTU_MIRROR="${AUTO_UBUNTU_MIRROR:-on}"
 
 case "$PROXY_MODE" in
   auto|on|off) ;;
@@ -192,13 +196,74 @@ case "$PROXY_MODE" in
     ;;
 esac
 
+case "$AUTO_UBUNTU_MIRROR" in
+  on|off) ;;
+  *)
+    gum style --foreground "$YELLOW" "⚠️  Invalid AUTO_UBUNTU_MIRROR='$AUTO_UBUNTU_MIRROR'. Using 'on'."
+    AUTO_UBUNTU_MIRROR="on"
+    ;;
+esac
+
+ubuntu_codename_for_version() {
+  case "$1" in
+    18.04) echo "bionic" ;;
+    22.04) echo "jammy" ;;
+    25.04) echo "plucky" ;;
+    *) echo "" ;;
+  esac
+}
+
+select_fast_ubuntu_mirror() {
+  local codename="$1"
+  local best_mirror=""
+  local best_ttfb="999999"
+  local mirror
+
+  [[ -n "$codename" ]] || return 0
+  command -v curl >/dev/null 2>&1 || return 0
+
+  for mirror in \
+    "http://archive.ubuntu.com/ubuntu" \
+    "http://mirrors.edge.kernel.org/ubuntu" \
+    "http://ftp.fau.de/ubuntu"; do
+    local inrelease_url="${mirror}/dists/${codename}/InRelease"
+    local curl_result
+    local http_code
+    local ttfb
+    curl_result="$(curl -4 --max-time 6 -L -o /dev/null -s -w '%{http_code} %{time_starttransfer}' "$inrelease_url" || true)"
+    http_code="${curl_result%% *}"
+    ttfb="${curl_result##* }"
+    if [[ "$http_code" == "200" ]] && awk "BEGIN { exit !($ttfb > 0 && $ttfb < $best_ttfb) }"; then
+      best_ttfb="$ttfb"
+      best_mirror="$mirror"
+    fi
+  done
+
+  echo "$best_mirror"
+}
+
 PROXY_BUILD_ARGS=()
 PROXY_RUN_ARGS=()
+PROXY_ENV_COUNT=0
+
+if [[ -z "$UBUNTU_MIRROR" && "$AUTO_UBUNTU_MIRROR" == "on" ]]; then
+  UBUNTU_CODENAME="$(ubuntu_codename_for_version "$UBUNTU_VERSION")"
+  AUTO_SELECTED_MIRROR="$(select_fast_ubuntu_mirror "$UBUNTU_CODENAME")"
+  if [[ -n "$AUTO_SELECTED_MIRROR" ]]; then
+    UBUNTU_MIRROR="$AUTO_SELECTED_MIRROR"
+    gum style --foreground "$CYAN" "ℹ️  Using Ubuntu mirror: $UBUNTU_MIRROR"
+  fi
+fi
+
+if [[ -n "$UBUNTU_MIRROR" ]]; then
+  PROXY_BUILD_ARGS+=(--build-arg "UBUNTU_MIRROR=${UBUNTU_MIRROR}")
+fi
 
 add_proxy_var() {
   local key="$1"
   local val="${!key-}"   # safe with 'set -u' even when unset
   if [[ -n "$val" ]]; then
+    PROXY_ENV_COUNT=$((PROXY_ENV_COUNT + 1))
     PROXY_BUILD_ARGS+=(--build-arg "${key}=${val}")
     PROXY_RUN_ARGS+=(-e "${key}=${val}")
   fi
@@ -210,7 +275,7 @@ if [[ "$PROXY_MODE" != "off" ]]; then
   done
 fi
 
-if [[ "$PROXY_MODE" == "on" && ${#PROXY_BUILD_ARGS[@]} -eq 0 ]]; then
+if [[ "$PROXY_MODE" == "on" && "$PROXY_ENV_COUNT" -eq 0 ]]; then
   gum style --foreground "$YELLOW" "⚠️  PROXY_MODE=on but no proxy variables are set in the environment."
 fi
 
@@ -246,7 +311,7 @@ build_image() {
 # ---------------------------------------------------------------------------
 build_image "$BASE_DOCKERFILE" "$BASE_IMAGE_TAG"
 
-if [[ "$PROFILE" == "zephyr" ]]; then
+if [[ "$PROFILE" == "zephyr" || "$PROFILE" == "esp-idf" ]]; then
   build_image "$DOCKERFILE" "$IMAGE_TAG"
 fi
 echo ""

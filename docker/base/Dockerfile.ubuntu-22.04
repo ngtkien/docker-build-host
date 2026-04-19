@@ -1,8 +1,10 @@
+# syntax=docker/dockerfile:1.4
 FROM amd64/ubuntu:22.04
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG USER_ID=1000
 ARG GROUP_ID=1000
+ARG UBUNTU_MIRROR
 
 # Proxy arguments
 ARG http_proxy
@@ -30,9 +32,14 @@ RUN set -eux; \
     echo "dash dash/sh boolean false" | debconf-set-selections; \
     dpkg-reconfigure -f noninteractive dash
 
-RUN set -eux; \
-    apt-get update && \
-    apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    set -eux; \
+    if [ -n "${UBUNTU_MIRROR:-}" ]; then \
+        sed -i "s|http://archive.ubuntu.com/ubuntu|${UBUNTU_MIRROR%/}|g; s|http://security.ubuntu.com/ubuntu|${UBUNTU_MIRROR%/}|g" /etc/apt/sources.list; \
+    fi; \
+    apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update && \
+    apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends \
         apt-utils \
         autoconf \
         automake \
@@ -139,7 +146,6 @@ RUN set -eux; \
         libcap-dev \
         libnuma-dev \
         libiberty-dev \
-    && rm -rf /var/lib/apt/lists/* \
     && rm -f /etc/apt/apt.conf.d/99proxy /etc/apt/apt.conf.d/99force-ipv4
 
 RUN set -eux; \

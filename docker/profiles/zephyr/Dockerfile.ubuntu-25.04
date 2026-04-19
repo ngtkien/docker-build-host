@@ -1,11 +1,14 @@
+# syntax=docker/dockerfile:1.4
 FROM zbuilder:ubuntu-25.04
 
 ARG DEBIAN_FRONTEND=noninteractive
 
 USER root
 
-RUN set -eux; \
-    apt-get update && \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    set -eux; \
+    apt-get -o Acquire::Retries=3 update && \
     apt-get install -y --no-install-recommends \
         ccache \
         cmake \
@@ -15,8 +18,7 @@ RUN set -eux; \
         ninja-build \
         python3-tk \
         python3-venv \
-        python3-wheel \
-    && rm -rf /var/lib/apt/lists/*
+        python3-wheel
 
 RUN set -eux; \
     pip3 install --no-cache-dir --break-system-packages \
