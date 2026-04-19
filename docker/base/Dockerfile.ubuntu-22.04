@@ -1,8 +1,10 @@
-FROM amd64/ubuntu:25.04
+# syntax=docker/dockerfile:1.4
+FROM amd64/ubuntu:22.04
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG USER_ID=1000
 ARG GROUP_ID=1000
+ARG UBUNTU_MIRROR
 
 # Proxy arguments
 ARG http_proxy
@@ -17,7 +19,7 @@ ARG ALL_PROXY
 ARG NO_PROXY
 
 # =============================================================================
-# Ubuntu 25.04 — Embedded Linux build environment (Buildroot, Yocto, OpenWrt)
+# Ubuntu 22.04 — Embedded Linux build environment (Buildroot, Yocto, OpenWrt)
 # =============================================================================
 
 RUN set -eux; \
@@ -30,9 +32,14 @@ RUN set -eux; \
     echo "dash dash/sh boolean false" | debconf-set-selections; \
     dpkg-reconfigure -f noninteractive dash
 
-RUN set -eux; \
-    apt-get update && \
-    apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    set -eux; \
+    if [ -n "${UBUNTU_MIRROR:-}" ]; then \
+        sed -i "s|http://archive.ubuntu.com/ubuntu|${UBUNTU_MIRROR%/}|g; s|http://security.ubuntu.com/ubuntu|${UBUNTU_MIRROR%/}|g" /etc/apt/sources.list; \
+    fi; \
+    apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update && \
+    apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends \
         apt-utils \
         autoconf \
         automake \
@@ -67,11 +74,12 @@ RUN set -eux; \
         iputils-ping \
         jq \
         libacl1 \
+        libc6-dev \
         libc6-dev-i386 \
         libegl1-mesa \
-        libgnutls30-dev \
+        libgnutls28-dev \
         liblz4-tool \
-        libncurses-dev \
+        libncurses5-dev \
         libnl-3-dev \
         libnl-route-3-dev \
         libsdl1.2-dev \
@@ -80,8 +88,6 @@ RUN set -eux; \
         locales \
         lz4 \
         mesa-common-dev \
-        mono-complete \
-        mono-devel \
         nano \
         neovim \
         net-tools \
@@ -90,6 +96,7 @@ RUN set -eux; \
         pylint \
         python3 \
         python3-dev \
+        python3-distutils \
         python3-git \
         python3-jinja2 \
         python3-pexpect \
@@ -117,17 +124,41 @@ RUN set -eux; \
         zip \
         zlib1g-dev \
         zstd \
-    && rm -rf /var/lib/apt/lists/* \
+        sharutils \
+        libusb-1.0-0-dev \
+        libusb-dev \
+        libreadline-dev \
+        python2 \
+        python2-dev \
+        libc6-dev-armel-cross \
+        libc6-dev-armhf-cross \
+        libc6-armel-cross \
+        libc6-armhf-cross \
+        libelf-dev \
+        libdw-dev \
+        libunwind-dev \
+        liblzma-dev \
+        libzstd-dev \
+        binutils-dev \
+        libslang2-dev \
+        libperl-dev \
+        libaudit-dev \
+        libcap-dev \
+        libnuma-dev \
+        libiberty-dev \
     && rm -f /etc/apt/apt.conf.d/99proxy /etc/apt/apt.conf.d/99force-ipv4
 
 RUN set -eux; \
-    pip3 install --no-cache-dir --break-system-packages \
+    pip3 install --no-cache-dir \
         jsonschema \
         Mako \
         pyelftools \
         PyYAML \
         yamllint \
     && rm -rf /root/.cache/pip
+
+RUN set -eux; \
+    curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR="/usr/local/bin" UV_NO_MODIFY_PATH=1 sh
 
 RUN set -eux; \
     locale-gen en_US en_US.UTF-8

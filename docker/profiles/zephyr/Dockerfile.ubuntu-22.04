@@ -1,0 +1,31 @@
+# syntax=docker/dockerfile:1.4
+FROM zbuilder:ubuntu-22.04
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+USER root
+
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    set -eux; \
+    apt-get -o Acquire::Retries=3 update && \
+    apt-get install -y --no-install-recommends \
+        ccache \
+        cmake \
+        gperf \
+        libmagic1 \
+        libsdl2-dev \
+        ninja-build \
+        python3-tk \
+        python3-venv \
+        python3-wheel
+
+RUN set -eux; \
+    pip3 install --no-cache-dir \
+        west \
+    && rm -rf /root/.cache/pip
+
+USER builder
+WORKDIR /workspace
+
+CMD ["/bin/bash"]
