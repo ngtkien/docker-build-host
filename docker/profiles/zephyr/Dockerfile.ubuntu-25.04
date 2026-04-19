@@ -1,0 +1,29 @@
+FROM zbuilder:ubuntu-25.04
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+USER root
+
+RUN set -eux; \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        ccache \
+        cmake \
+        gperf \
+        libmagic1 \
+        libsdl2-dev \
+        ninja-build \
+        python3-tk \
+        python3-venv \
+        python3-wheel \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN set -eux; \
+    pip3 install --no-cache-dir --break-system-packages \
+        west \
+    && rm -rf /root/.cache/pip
+
+USER builder
+WORKDIR /workspace
+
+CMD ["/bin/bash"]

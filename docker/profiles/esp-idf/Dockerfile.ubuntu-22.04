@@ -1,0 +1,32 @@
+FROM zbuilder:ubuntu-22.04
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+USER root
+
+RUN set -eux; \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        bison \
+        ccache \
+        cmake \
+        dfu-util \
+        flex \
+        gperf \
+        libffi-dev \
+        libssl-dev \
+        libusb-1.0-0 \
+        ninja-build \
+        python3-venv \
+        wget \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN set -eux; \
+    pip3 install --no-cache-dir \
+        idf-component-manager \
+    && rm -rf /root/.cache/pip
+
+USER builder
+WORKDIR /workspace
+
+CMD ["/bin/bash"]

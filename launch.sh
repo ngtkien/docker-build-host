@@ -6,16 +6,20 @@ set -euo pipefail
 #
 # Builds and runs a container with toolchains for Buildroot, Yocto, OpenWrt, etc.
 # Usage:
-#   ./launch.sh              # interactive menu
-#   ./launch.sh 18.04        # non-interactive
-#   ./launch.sh 22.04
+#   ./launch.sh                   # interactive menu
+#   ./launch.sh 22.04             # base profile
+#   ./launch.sh zephyr 22.04      # zephyr profile
+#   ./launch.sh esp-idf 25.04     # esp-idf profile
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WORKSPACE_DIR="$(dirname "$SCRIPT_DIR")"   # one level up from docker/
+DEFAULT_WORKSPACE_DIR="$(dirname "$SCRIPT_DIR")"
+WORKSPACE_DIR="${WORKSPACE_DIR:-$DEFAULT_WORKSPACE_DIR}"
+PROFILE="${PROFILE:-base}"
 
 SUPPORTED_VERSIONS=("18.04" "22.04" "25.04")
 DEFAULT_VERSION="22.04"
+SUPPORTED_PROFILES=("base" "zephyr" "esp-idf")
 
 # Color helpers
 CYAN="63"
@@ -25,10 +29,22 @@ RED="196"
 BORDER_COLOR="63"
 
 # ---------------------------------------------------------------------------
-# Determine Ubuntu version
+# Determine profile and Ubuntu version
 # ---------------------------------------------------------------------------
 if [ $# -ge 1 ]; then
-  UBUNTU_VERSION="$1"
+  case "$1" in
+    base|zephyr|esp-idf)
+      PROFILE="$1"
+      if [ $# -ge 2 ]; then
+        UBUNTU_VERSION="$2"
+      else
+        UBUNTU_VERSION=""
+      fi
+      ;;
+    *)
+      UBUNTU_VERSION="$1"
+      ;;
+  esac
 else
   echo ""
   gum style \
@@ -38,6 +54,25 @@ else
     --border-foreground "$BORDER_COLOR" \
     --foreground "$CYAN" \
     "🐳  Embedded Linux Build Environment"
+
+  echo ""
+
+  CHOICE_PROFILE=$(gum choose \
+    --header "Select environment profile:" \
+    --cursor "→ " \
+    --selected.foreground "$CYAN" \
+    "base    (generic embedded Linux build host)" \
+    "zephyr  (base image + Zephyr host tools)" \
+    "esp-idf (base image + Espressif host tools)")
+
+  case "$CHOICE_PROFILE" in
+    base*) PROFILE="base" ;;
+    zephyr*) PROFILE="zephyr" ;;
+    esp-idf*) PROFILE="esp-idf" ;;
+    *)
+      gum style --foreground "$YELLOW" "⚠️  No profile selected. Using default: $PROFILE"
+      ;;
+  esac
 
   echo ""
 
@@ -60,6 +95,23 @@ else
   esac
 fi
 
+# Validate profile
+PROFILE_VALID=0
+for P in "${SUPPORTED_PROFILES[@]}"; do
+  [[ "$PROFILE" == "$P" ]] && PROFILE_VALID=1 && break
+done
+if [ "$PROFILE_VALID" -eq 0 ]; then
+  echo ""
+  gum style --foreground "$RED" "❌  Unsupported profile: '$PROFILE'"
+  gum style --foreground "$YELLOW" "   Supported: ${SUPPORTED_PROFILES[*]}"
+  exit 1
+fi
+
+# Default version if omitted in non-interactive profile mode
+if [[ -z "${UBUNTU_VERSION:-}" ]]; then
+  UBUNTU_VERSION="$DEFAULT_VERSION"
+fi
+
 # Validate
 VALID=0
 for V in "${SUPPORTED_VERSIONS[@]}"; do
@@ -72,8 +124,27 @@ if [ "$VALID" -eq 0 ]; then
   exit 1
 fi
 
-DOCKERFILE="$SCRIPT_DIR/Dockerfile.ubuntu-${UBUNTU_VERSION}"
-IMAGE_TAG="zbuilder:ubuntu-${UBUNTU_VERSION}"
+BASE_IMAGE_TAG="zbuilder:ubuntu-${UBUNTU_VERSION}"
+BASE_DOCKERFILE="$SCRIPT_DIR/docker/base/Dockerfile.ubuntu-${UBUNTU_VERSION}"
+DOCKERFILE="$BASE_DOCKERFILE"
+IMAGE_TAG="$BASE_IMAGE_TAG"
+
+case "$PROFILE" in
+  base)
+    ;;
+  zephyr|esp-idf)
+    if [[ "$UBUNTU_VERSION" == "18.04" ]]; then
+      echo ""
+      gum style --foreground "$RED" "❌  Profile '$PROFILE' requires Ubuntu 22.04 or newer."
+      exit 1
+    fi
+    DOCKERFILE="$SCRIPT_DIR/docker/profiles/$PROFILE/Dockerfile.ubuntu-${UBUNTU_VERSION}"
+    IMAGE_TAG="zbuilder:${PROFILE}-${UBUNTU_VERSION}"
+    ;;
+esac
+
+WORKSPACE_DIR="$(cd "$WORKSPACE_DIR" && pwd)"
+BUILD_CONTEXT="$SCRIPT_DIR"
 
 # ---------------------------------------------------------------------------
 # Display configuration
@@ -86,8 +157,9 @@ gum style \
   --border-foreground "$BORDER_COLOR" \
   "$(gum format <<EOF
 ### Build Configuration
+- **Profile:** \`$PROFILE\`
 - **Ubuntu version:** \`$UBUNTU_VERSION\`
-- **Dockerfile:** \`docker/Dockerfile.ubuntu-$UBUNTU_VERSION\`
+- **Dockerfile:** \`$(basename "$DOCKERFILE")\`
 - **Image tag:** \`$IMAGE_TAG\`
 - **Workspace:** \`$WORKSPACE_DIR\`
 EOF
@@ -142,30 +214,41 @@ if [[ "$PROXY_MODE" == "on" && ${#PROXY_BUILD_ARGS[@]} -eq 0 ]]; then
   gum style --foreground "$YELLOW" "⚠️  PROXY_MODE=on but no proxy variables are set in the environment."
 fi
 
+build_image() {
+  local dockerfile="$1"
+  local image_tag="$2"
+
+  echo ""
+  gum style \
+    --border rounded \
+    --padding "0 2" \
+    --margin "0 1" \
+    --border-foreground "$CYAN" \
+    --foreground "$CYAN" \
+    "🔨  Building image: $image_tag"
+  echo ""
+
+  DOCKER_BUILDKIT=1 $DOCKER_CMD build \
+    --network="$BUILD_NETWORK" \
+    "${PROXY_BUILD_ARGS[@]}" \
+    --build-arg USER_ID="$(id -u)" \
+    --build-arg GROUP_ID="$(id -g)" \
+    -t "$image_tag" \
+    -f "$dockerfile" \
+    "$BUILD_CONTEXT"
+
+  echo ""
+  gum style --foreground "$GREEN" "✅  Image built: $image_tag"
+}
+
 # ---------------------------------------------------------------------------
 # Build
 # ---------------------------------------------------------------------------
-echo ""
-gum style \
-  --border rounded \
-  --padding "0 2" \
-  --margin "0 1" \
-  --border-foreground "$CYAN" \
-  --foreground "$CYAN" \
-  "🔨  Building image: $IMAGE_TAG"
-echo ""
+build_image "$BASE_DOCKERFILE" "$BASE_IMAGE_TAG"
 
-DOCKER_BUILDKIT=1 $DOCKER_CMD build \
-  --network="$BUILD_NETWORK" \
-  "${PROXY_BUILD_ARGS[@]}" \
-  --build-arg USER_ID="$(id -u)" \
-  --build-arg GROUP_ID="$(id -g)" \
-  -t "$IMAGE_TAG" \
-  -f "$DOCKERFILE" \
-  "$WORKSPACE_DIR"
-
-echo ""
-gum style --foreground "$GREEN" "✅  Image built: $IMAGE_TAG"
+if [[ "$PROFILE" == "zephyr" ]]; then
+  build_image "$DOCKERFILE" "$IMAGE_TAG"
+fi
 echo ""
 
 # ---------------------------------------------------------------------------
