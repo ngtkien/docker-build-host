@@ -68,9 +68,8 @@ RUN set -eux; \
         jq \
         libacl1 \
         libc6-dev-i386 \
-        libegl1-mesa \
-        libgnutls30-dev \
-        liblz4-tool \
+        libegl-dev \
+        libgnutls28-dev \
         libncurses-dev \
         libnl-3-dev \
         libnl-route-3-dev \
