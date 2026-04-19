@@ -152,6 +152,9 @@ RUN set -eux; \
     && rm -rf /root/.cache/pip
 
 RUN set -eux; \
+    curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR="/usr/local/bin" UV_NO_MODIFY_PATH=1 sh
+
+RUN set -eux; \
     locale-gen en_US en_US.UTF-8
 
 ENV LC_ALL="en_US.UTF-8" \

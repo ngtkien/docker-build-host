@@ -63,6 +63,7 @@ WORKSPACE_DIR=$HOME/work/esp ./launch.sh esp-idf 25.04
 ## Included tools
 
 - **Base profile**: generic embedded Linux host tools for Buildroot, Yocto, OpenWrt, and related projects
+- **Python tooling**: `uv` is preinstalled in Ubuntu `22.04` and `25.04` images
 - **Zephyr profile**: base image plus Zephyr host dependencies such as `cmake`, `ninja`, `gperf`, `ccache`, `west`, Python venv support, SDL2, and `libmagic`
 - **ESP-IDF profile**: base image plus Espressif host dependencies such as `cmake`, `ninja`, `gperf`, `ccache`, `dfu-util`, `libffi-dev`, `libssl-dev`, `libusb-1.0-0`, and Python venv support
 - **Networking**: libnl, socat, iproute2, iputils
