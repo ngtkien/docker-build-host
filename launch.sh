@@ -6,10 +6,10 @@ set -euo pipefail
 #
 # Builds and runs a container with toolchains for Buildroot, Yocto, OpenWrt, etc.
 # Usage:
-#   ./launch.sh                   # interactive menu
-#   ./launch.sh 22.04             # base profile
-#   ./launch.sh zephyr 22.04      # zephyr profile
-#   ./launch.sh esp-idf 25.04     # esp-idf profile
+#   ./launch.sh                       # interactive menu
+#   ./launch.sh 22.04                 # base profile
+#   ./launch.sh embedded 22.04        # embedded profile
+#   ./launch.sh -w /opt -w /data 22.04 # base + extra mounts
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -19,7 +19,7 @@ PROFILE="${PROFILE:-base}"
 
 SUPPORTED_VERSIONS=("18.04" "22.04" "25.04")
 DEFAULT_VERSION="22.04"
-SUPPORTED_PROFILES=("base" "zephyr" "esp-idf")
+SUPPORTED_PROFILES=("base" "embedded")
 
 # Color helpers
 CYAN="63"
@@ -29,21 +29,49 @@ RED="196"
 BORDER_COLOR="63"
 
 # ---------------------------------------------------------------------------
-# Determine profile and Ubuntu version
+# Parse flags
+# ---------------------------------------------------------------------------
+EXTRA_MOUNTS=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -w)
+      if [[ $# -lt 2 ]]; then
+        echo "❌  -w requires a path" >&2
+        exit 1
+      fi
+      EXTRA_MOUNTS+=(-v "$2:$2")
+      shift 2
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      echo "❌  Unknown option: $1" >&2
+      exit 1
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+# ---------------------------------------------------------------------------
+# Determine profile and Ubuntu version from remaining positional args
 # ---------------------------------------------------------------------------
 if [ $# -ge 1 ]; then
   case "$1" in
-    base|zephyr|esp-idf)
-      PROFILE="$1"
-      if [ $# -ge 2 ]; then
-        UBUNTU_VERSION="$2"
-      else
-        UBUNTU_VERSION=""
-      fi
-      ;;
-    *)
-      UBUNTU_VERSION="$1"
-      ;;
+  base | embedded)
+    PROFILE="$1"
+    if [ $# -ge 2 ]; then
+      UBUNTU_VERSION="$2"
+    else
+      UBUNTU_VERSION=""
+    fi
+    ;;
+  *)
+    UBUNTU_VERSION="$1"
+    ;;
   esac
 else
   echo ""
@@ -61,17 +89,15 @@ else
     --header "Select environment profile:" \
     --cursor "→ " \
     --selected.foreground "$CYAN" \
-    "base    (generic embedded Linux build host)" \
-    "zephyr  (base image + Zephyr host tools)" \
-    "esp-idf (base image + Espressif host tools)")
+    "base     (generic embedded Linux build host)" \
+    "embedded (base image + RTOS/SDK host tools)")
 
   case "$CHOICE_PROFILE" in
-    base*) PROFILE="base" ;;
-    zephyr*) PROFILE="zephyr" ;;
-    esp-idf*) PROFILE="esp-idf" ;;
-    *)
-      gum style --foreground "$YELLOW" "⚠️  No profile selected. Using default: $PROFILE"
-      ;;
+  base*) PROFILE="base" ;;
+  embedded*) PROFILE="embedded" ;;
+  *)
+    gum style --foreground "$YELLOW" "⚠️  No profile selected. Using default: $PROFILE"
+    ;;
   esac
 
   echo ""
@@ -85,14 +111,26 @@ else
     "25.04  (non-LTS — latest)")
 
   case "$CHOICE" in
-    18.04*) UBUNTU_VERSION="18.04" ;;
-    22.04*) UBUNTU_VERSION="22.04" ;;
-    25.04*) UBUNTU_VERSION="25.04" ;;
-    *)
-      gum style --foreground "$YELLOW" "⚠️  No selection made. Using default: $DEFAULT_VERSION"
-      UBUNTU_VERSION="$DEFAULT_VERSION"
-      ;;
+  18.04*) UBUNTU_VERSION="18.04" ;;
+  22.04*) UBUNTU_VERSION="22.04" ;;
+  25.04*) UBUNTU_VERSION="25.04" ;;
+  *)
+    gum style --foreground "$YELLOW" "⚠️  No selection made. Using default: $DEFAULT_VERSION"
+    UBUNTU_VERSION="$DEFAULT_VERSION"
+    ;;
   esac
+
+  echo ""
+  while gum confirm --prompt.foreground "$CYAN" "📂  Mount extra host path into container?"; do
+    MOUNT_PATH=$(gum input --placeholder "/opt" --prompt "Path: ")
+    if [[ -n "$MOUNT_PATH" && -e "$MOUNT_PATH" ]]; then
+      EXTRA_MOUNTS+=(-v "$MOUNT_PATH:$MOUNT_PATH")
+      gum style --foreground "$GREEN" "   Added: $MOUNT_PATH"
+    elif [[ -n "$MOUNT_PATH" ]]; then
+      gum style --foreground "$YELLOW" "   ⚠️  Path does not exist: $MOUNT_PATH — skipping"
+    fi
+    echo ""
+  done
 fi
 
 # Validate profile
@@ -130,17 +168,16 @@ DOCKERFILE="$BASE_DOCKERFILE"
 IMAGE_TAG="$BASE_IMAGE_TAG"
 
 case "$PROFILE" in
-  base)
-    ;;
-  zephyr|esp-idf)
-    if [[ "$UBUNTU_VERSION" == "18.04" ]]; then
-      echo ""
-      gum style --foreground "$RED" "❌  Profile '$PROFILE' requires Ubuntu 22.04 or newer."
-      exit 1
-    fi
-    DOCKERFILE="$SCRIPT_DIR/docker/profiles/$PROFILE/Dockerfile.ubuntu-${UBUNTU_VERSION}"
-    IMAGE_TAG="zbuilder:${PROFILE}-${UBUNTU_VERSION}"
-    ;;
+base) ;;
+embedded)
+  if [[ "$UBUNTU_VERSION" == "18.04" ]]; then
+    echo ""
+    gum style --foreground "$RED" "❌  Profile '$PROFILE' requires Ubuntu 22.04 or newer."
+    exit 1
+  fi
+  DOCKERFILE="$SCRIPT_DIR/docker/embedded/Dockerfile.ubuntu-${UBUNTU_VERSION}"
+  IMAGE_TAG="zbuilder:${PROFILE}-${UBUNTU_VERSION}"
+  ;;
 esac
 
 WORKSPACE_DIR="$(cd "$WORKSPACE_DIR" && pwd)"
@@ -155,7 +192,8 @@ gum style \
   --padding "1 2" \
   --margin "0 1" \
   --border-foreground "$BORDER_COLOR" \
-  "$(gum format <<EOF
+  "$(
+    gum format <<EOF
 ### Build Configuration
 - **Profile:** \`$PROFILE\`
 - **Ubuntu version:** \`$UBUNTU_VERSION\`
@@ -163,7 +201,7 @@ gum style \
 - **Image tag:** \`$IMAGE_TAG\`
 - **Workspace:** \`$WORKSPACE_DIR\`
 EOF
-)"
+  )"
 
 echo ""
 
@@ -171,45 +209,45 @@ echo ""
 # Detect docker vs sudo docker
 # ---------------------------------------------------------------------------
 DOCKER_CMD="docker"
-if ! docker info > /dev/null 2>&1; then
+if ! docker info >/dev/null 2>&1; then
   gum style --foreground "$YELLOW" "ℹ️  Docker not accessible without sudo — switching to 'sudo -E docker'."
   DOCKER_CMD="sudo -E docker"
 fi
 
 # ---------------------------------------------------------------------------
 # Optional proxy args (works with and without proxy env)
-# PROXY_MODE: auto | on | off (default: auto)
+# PROXY_MODE: auto | on | off (default: off)
 # BUILD_NETWORK: host | default (default: host)
 # UBUNTU_MIRROR: optional apt mirror URL for faster first-time apt downloads
 # AUTO_UBUNTU_MIRROR: on | off (default: on when UBUNTU_MIRROR is unset)
 # ---------------------------------------------------------------------------
-PROXY_MODE="${PROXY_MODE:-auto}"
+PROXY_MODE="${PROXY_MODE:-off}"
 BUILD_NETWORK="${BUILD_NETWORK:-host}"
 UBUNTU_MIRROR="${UBUNTU_MIRROR:-}"
 AUTO_UBUNTU_MIRROR="${AUTO_UBUNTU_MIRROR:-on}"
 
 case "$PROXY_MODE" in
-  auto|on|off) ;;
-  *)
-    gum style --foreground "$YELLOW" "⚠️  Invalid PROXY_MODE='$PROXY_MODE'. Using 'auto'."
-    PROXY_MODE="auto"
-    ;;
+auto | on | off) ;;
+*)
+  gum style --foreground "$YELLOW" "⚠️  Invalid PROXY_MODE='$PROXY_MODE'. Using 'off'."
+  PROXY_MODE="off"
+  ;;
 esac
 
 case "$AUTO_UBUNTU_MIRROR" in
-  on|off) ;;
-  *)
-    gum style --foreground "$YELLOW" "⚠️  Invalid AUTO_UBUNTU_MIRROR='$AUTO_UBUNTU_MIRROR'. Using 'on'."
-    AUTO_UBUNTU_MIRROR="on"
-    ;;
+on | off) ;;
+*)
+  gum style --foreground "$YELLOW" "⚠️  Invalid AUTO_UBUNTU_MIRROR='$AUTO_UBUNTU_MIRROR'. Using 'on'."
+  AUTO_UBUNTU_MIRROR="on"
+  ;;
 esac
 
 ubuntu_codename_for_version() {
   case "$1" in
-    18.04) echo "bionic" ;;
-    22.04) echo "jammy" ;;
-    25.04) echo "plucky" ;;
-    *) echo "" ;;
+  18.04) echo "bionic" ;;
+  22.04) echo "jammy" ;;
+  25.04) echo "plucky" ;;
+  *) echo "" ;;
   esac
 }
 
@@ -261,7 +299,7 @@ fi
 
 add_proxy_var() {
   local key="$1"
-  local val="${!key-}"   # safe with 'set -u' even when unset
+  local val="${!key-}" # safe with 'set -u' even when unset
   if [[ -n "$val" ]]; then
     PROXY_ENV_COUNT=$((PROXY_ENV_COUNT + 1))
     PROXY_BUILD_ARGS+=(--build-arg "${key}=${val}")
@@ -294,8 +332,9 @@ build_image() {
   echo ""
 
   DOCKER_BUILDKIT=1 $DOCKER_CMD build \
+    --platform linux/amd64 \
     --network="$BUILD_NETWORK" \
-    "${PROXY_BUILD_ARGS[@]}" \
+    ${PROXY_BUILD_ARGS[@]+"${PROXY_BUILD_ARGS[@]}"} \
     --build-arg USER_ID="$(id -u)" \
     --build-arg GROUP_ID="$(id -g)" \
     -t "$image_tag" \
@@ -311,7 +350,7 @@ build_image() {
 # ---------------------------------------------------------------------------
 build_image "$BASE_DOCKERFILE" "$BASE_IMAGE_TAG"
 
-if [[ "$PROFILE" == "zephyr" || "$PROFILE" == "esp-idf" ]]; then
+if [[ "$PROFILE" == "embedded" ]]; then
   build_image "$DOCKERFILE" "$IMAGE_TAG"
 fi
 echo ""
@@ -325,7 +364,7 @@ echo ""
 $DOCKER_CMD run \
   --rm -it \
   --network host \
-  "${PROXY_RUN_ARGS[@]}" \
+  ${PROXY_RUN_ARGS[@]+"${PROXY_RUN_ARGS[@]}"} \
   -v "${WORKSPACE_DIR}:/workspace" \
-  -v /opt:/opt \
+  ${EXTRA_MOUNTS[@]+"${EXTRA_MOUNTS[@]}"} \
   "$IMAGE_TAG"

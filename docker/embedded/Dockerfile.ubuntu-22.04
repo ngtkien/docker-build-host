@@ -1,0 +1,49 @@
+# syntax=docker/dockerfile:1.4
+FROM zbuilder:ubuntu-22.04
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+USER root
+
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    set -eux; \
+    apt-get -o Acquire::Retries=3 update && \
+    apt-get install -y --no-install-recommends \
+        ccache \
+        cmake \
+        gperf \
+        libmagic1 \
+        libsdl2-dev \
+        ninja-build \
+        python3-tk \
+        python3-venv \
+        python3-wheel \
+        software-properties-common
+
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    set -eux; \
+    add-apt-repository -y ppa:deadsnakes/ppa && \
+    apt-get -o Acquire::Retries=3 update && \
+    apt-get install -y --no-install-recommends \
+        python3.12 \
+        python3.12-dev \
+        python3.12-venv \
+        python3.12-distutils && \
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1 && \
+    update-alternatives --install /usr/bin/python python /usr/bin/python3.12 1
+
+RUN set -eux; \
+    curl -sS https://bootstrap.pypa.io/get-pip.py | python3.12 && \
+    python3.12 -m pip install --no-cache-dir \
+        patool \
+        semver \
+        tqdm \
+        west \
+    && rm -rf /root/.cache/pip
+
+USER builder
+WORKDIR /workspace
+
+CMD ["/bin/bash"]

@@ -1,6 +1,6 @@
 # Embedded Linux Build Environment
 
-Docker-based build environment for embedded Linux projects. The workspace is organized around reusable Ubuntu base images plus profile overlays for **Zephyr** and **ESP-IDF**.
+Docker-based build environment for embedded Linux projects. The workspace is organized around a reusable Ubuntu base image plus an `embedded` overlay for RTOS/SDK development (e.g., Zephyr, ESP-IDF).
 
 ## Prerequisites
 
@@ -29,31 +29,40 @@ Select your Ubuntu version from the interactive menu. The container builds and l
 ./launch.sh 22.04
 ./launch.sh 18.04
 ./launch.sh 25.04
-./launch.sh zephyr 22.04
-./launch.sh esp-idf 25.04
+./launch.sh embedded 22.04
+./launch.sh -w /opt -w /data 22.04
 ```
 
-The old form `./launch.sh 22.04` still launches the generic `base` profile. Use `./launch.sh zephyr 22.04` or `./launch.sh esp-idf 25.04` for profile overlays.
+The old form `./launch.sh 22.04` still launches the generic `base` profile. Use `./launch.sh embedded 22.04` for the embedded overlay.
 
-`zephyr` and `esp-idf` require Ubuntu `22.04` or newer. `18.04` remains available only for the generic `base` profile.
+`embedded` requires Ubuntu `22.04` or newer. `18.04` remains available only for the generic `base` profile.
+
+### Extra mounts
+
+In interactive mode you will be asked whether to mount extra host paths. In non-interactive mode use `-w` (repeatable):
+
+```bash
+./launch.sh -w /opt -w /data 22.04
+./launch.sh -w /opt/homebrew embedded 22.04
+```
 
 ### Environment variables
 
 | Variable | Values | Default | Description |
 |---|---|---|---|
-| `PROXY_MODE` | `auto`, `on`, `off` | `auto` | Proxy handling for build and run |
+| `PROXY_MODE` | `auto`, `on`, `off` | `off` | Proxy handling for build and run |
 | `BUILD_NETWORK` | `host`, `default` | `host` | Docker network mode during build |
 | `UBUNTU_MIRROR` | apt mirror URL | unset | Override Ubuntu apt mirror for faster first-time package downloads |
 | `AUTO_UBUNTU_MIRROR` | `on`, `off` | `on` | Auto-select a faster mirror when `UBUNTU_MIRROR` is unset |
 | `WORKSPACE_DIR` | host path | parent of this repo | Host directory mounted into `/workspace` |
-| `PROFILE` | `base`, `zephyr`, `esp-idf` | `base` | Default launch profile when not passed as an argument |
+| `PROFILE` | `base`, `embedded` | `base` | Default launch profile when not passed as an argument |
 
 ```bash
 PROXY_MODE=on ./launch.sh 22.04
 UBUNTU_MIRROR=http://mirrors.edge.kernel.org/ubuntu ./launch.sh 22.04
 AUTO_UBUNTU_MIRROR=off ./launch.sh 22.04
-WORKSPACE_DIR=$HOME/work/zephyr ./launch.sh zephyr 22.04
-WORKSPACE_DIR=$HOME/work/esp ./launch.sh esp-idf 25.04
+WORKSPACE_DIR=$HOME/work/embedded ./launch.sh embedded 22.04
+./launch.sh -w /opt -w /data 22.04
 ```
 
 ## Supported Ubuntu versions
@@ -68,21 +77,22 @@ WORKSPACE_DIR=$HOME/work/esp ./launch.sh esp-idf 25.04
 
 - **Base profile**: generic embedded Linux host tools for Buildroot, Yocto, OpenWrt, and related projects
 - **Python tooling**: `uv` is preinstalled in Ubuntu `22.04` and `25.04` images
-- **Zephyr profile**: base image plus Zephyr host dependencies such as `cmake`, `ninja`, `gperf`, `ccache`, `west`, Python venv support, SDL2, and `libmagic`
-- **ESP-IDF profile**: base image plus Espressif host dependencies such as `cmake`, `ninja`, `gperf`, `ccache`, `dfu-util`, `libffi-dev`, `libssl-dev`, `libusb-1.0-0`, and Python venv support
+- **Embedded profile**: base image plus RTOS/SDK host dependencies such as `cmake`, `ninja`, `gperf`, `ccache`, `west`, Python venv support, SDL2, and `libmagic`
 - **Networking**: libnl, socat, iproute2, iputils
 - **Editors**: vim, neovim, nano
 - **Terminal**: tmux, screen, xterm
 
-## Zephyr usage
+## Embedded profile usage
 
-Launch a Zephyr image against a Zephyr-specific workspace:
+Launch the embedded profile against an RTOS/SDK workspace:
 
 ```bash
-WORKSPACE_DIR=$HOME/work/zephyr ./launch.sh zephyr 22.04
+WORKSPACE_DIR=$HOME/work/embedded ./launch.sh embedded 22.04
 ```
 
-The Zephyr image includes the common Linux host dependencies needed to initialize and build a Zephyr workspace. After launching a container:
+The embedded image includes common Linux host dependencies for Zephyr, ESP-IDF, and similar RTOS projects. After launching a container you can set up your SDK of choice:
+
+### Zephyr
 
 ```bash
 python3 -m venv .venv
@@ -96,15 +106,7 @@ pip install -r zephyr/scripts/requirements.txt
 
 For board builds, install the Zephyr SDK separately inside the container or mount an existing SDK and set `ZEPHYR_SDK_INSTALL_DIR`.
 
-## ESP-IDF usage
-
-Launch an ESP-IDF image against an ESP-IDF workspace:
-
-```bash
-WORKSPACE_DIR=$HOME/work/esp ./launch.sh esp-idf 25.04
-```
-
-The ESP-IDF image includes the current Linux host prerequisites documented by Espressif. After launching a container:
+### ESP-IDF
 
 ```bash
 python3 -m venv .venv
@@ -127,17 +129,13 @@ If you already have an `esp-idf` checkout in your mounted workspace, run `./inst
 │   │   ├── Dockerfile.ubuntu-18.04
 │   │   ├── Dockerfile.ubuntu-22.04
 │   │   └── Dockerfile.ubuntu-25.04
-│   └── profiles/
-│       ├── zephyr/
-│       │   ├── Dockerfile.ubuntu-22.04
-│       │   └── Dockerfile.ubuntu-25.04
-│       └── esp-idf/
-│           ├── Dockerfile.ubuntu-22.04
-│           └── Dockerfile.ubuntu-25.04
+│   └── embedded/
+│       ├── Dockerfile.ubuntu-22.04
+│       └── Dockerfile.ubuntu-25.04
 ```
 
 ## Inside the container
 
 - Workspace mounted at `/workspace`
-- `/opt` mounted from host
+- Extra host paths mounted with `-w <path>` (same path inside container)
 - Non-root user `builder` matching your host UID/GID
