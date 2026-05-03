@@ -73,6 +73,9 @@ if [ $# -ge 1 ]; then
     UBUNTU_VERSION="$1"
     ;;
   esac
+elif [ ${#EXTRA_MOUNTS[@]} -gt 0 ]; then
+  # Non-interactive with only -w flags provided, use defaults
+  UBUNTU_VERSION=""
 else
   echo ""
   gum style \
@@ -200,6 +203,7 @@ gum style \
 - **Dockerfile:** \`$(basename "$DOCKERFILE")\`
 - **Image tag:** \`$IMAGE_TAG\`
 - **Workspace:** \`$WORKSPACE_DIR\`
+- **Extra mounts:** \`${#EXTRA_MOUNTS[@]} path(s)\`
 EOF
   )"
 
@@ -316,6 +320,8 @@ fi
 if [[ "$PROXY_MODE" == "on" && "$PROXY_ENV_COUNT" -eq 0 ]]; then
   gum style --foreground "$YELLOW" "⚠️  PROXY_MODE=on but no proxy variables are set in the environment."
 fi
+
+
 
 build_image() {
   local dockerfile="$1"

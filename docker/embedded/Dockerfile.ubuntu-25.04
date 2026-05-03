@@ -28,6 +28,19 @@ RUN set -eux; \
         west \
     && rm -rf /root/.cache/pip
 
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    set -eux; \
+    apt-get -o Acquire::Retries=3 update && \
+    apt-get install -y --no-install-recommends \
+        libxrandr2 libfreetype6-dev libsm6 libxfixes3 libxcursor-dev \
+        libxcb-render-util0 libxcb-randr0 libxcb-shape0 libxcb-image0 \
+        libxkbcommon-x11-0 libx11-xcb1 libxcb-icccm4 libxcb-sync1 \
+        libxcb-keysyms1 libxcb-xfixes0 libglib2.0-0 usbutils \
+        wget \
+    && rm -rf /var/lib/apt/lists/*
+
+
 USER builder
 WORKDIR /workspace
 
