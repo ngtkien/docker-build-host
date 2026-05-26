@@ -47,20 +47,15 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         git \
         git-lfs \
         gosu \
-        help2man \
         iproute2 \
-        iputils-ping \
         jq \
-        libegl1-mesa \
         libelf-dev \
         libncurses5-dev \
         libnl-3-dev \
         libnl-route-3-dev \
-        libsdl1.2-dev \
         libssl-dev \
         libxml-parser-perl \
         locales \
-        net-tools \
         pigz \
         python \
         python3 \
@@ -70,14 +65,12 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         python3-setuptools \
         rsync \
         socat \
-        subversion \
         sudo \
         swig \
         texinfo \
         time \
         u-boot-tools \
         unzip \
-        usbutils \
         uuid-dev \
         wget \
         xxd \

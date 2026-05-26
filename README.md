@@ -73,7 +73,7 @@ WORKSPACE_DIR=$HOME/work/embedded ./launch.sh embedded 22.04
 
 - **Base profile**: generic embedded Linux host tools for Buildroot, Yocto, OpenWrt, and related projects
 - **Embedded profile**: base image plus RTOS/SDK host dependencies such as `cmake`, `ninja`, `gperf`, `ccache`, `west`, Python venv support, SDL2, and `libmagic`
-- **Networking**: libnl, socat, iproute2, iputils
+- **Networking**: libnl, socat, iproute2
 
 ## Embedded profile usage
 

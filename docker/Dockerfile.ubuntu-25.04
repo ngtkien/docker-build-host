@@ -51,22 +51,16 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         git \
         git-lfs \
         gosu \
-        help2man \
         iproute2 \
-        iputils-ping \
         jq \
-        libegl-dev \
         libelf-dev \
         libncurses-dev \
         libnl-3-dev \
         libnl-route-3-dev \
-        libsdl1.2-dev \
         libssl-dev \
         libxml-parser-perl \
         locales \
         lz4 \
-        mesa-common-dev \
-        net-tools \
         pigz \
         python3 \
         python3-dev \
@@ -74,14 +68,12 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         python-is-python3 \
         rsync \
         socat \
-        subversion \
         sudo \
         swig \
         texinfo \
         time \
         u-boot-tools \
         unzip \
-        usbutils \
         uuid-dev \
         wget \
         xxd \
