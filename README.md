@@ -52,15 +52,11 @@ In interactive mode you will be asked whether to mount extra host paths. In non-
 |---|---|---|---|
 | `PROXY_MODE` | `auto`, `on`, `off` | `off` | Proxy handling for build and run |
 | `BUILD_NETWORK` | `host`, `default` | `host` | Docker network mode during build |
-| `UBUNTU_MIRROR` | apt mirror URL | unset | Override Ubuntu apt mirror for faster first-time package downloads |
-| `AUTO_UBUNTU_MIRROR` | `on`, `off` | `on` | Auto-select a faster mirror when `UBUNTU_MIRROR` is unset |
 | `WORKSPACE_DIR` | host path | parent of this repo | Host directory mounted into `/workspace` |
 | `PROFILE` | `base`, `embedded` | `base` | Default launch profile when not passed as an argument |
 
 ```bash
 PROXY_MODE=on ./launch.sh 22.04
-UBUNTU_MIRROR=http://mirrors.edge.kernel.org/ubuntu ./launch.sh 22.04
-AUTO_UBUNTU_MIRROR=off ./launch.sh 22.04
 WORKSPACE_DIR=$HOME/work/embedded ./launch.sh embedded 22.04
 ./launch.sh -w /opt -w /data 22.04
 ```
@@ -76,11 +72,8 @@ WORKSPACE_DIR=$HOME/work/embedded ./launch.sh embedded 22.04
 ## Included tools
 
 - **Base profile**: generic embedded Linux host tools for Buildroot, Yocto, OpenWrt, and related projects
-- **Python tooling**: `uv` is preinstalled in Ubuntu `22.04` and `25.04` images
 - **Embedded profile**: base image plus RTOS/SDK host dependencies such as `cmake`, `ninja`, `gperf`, `ccache`, `west`, Python venv support, SDL2, and `libmagic`
 - **Networking**: libnl, socat, iproute2, iputils
-- **Editors**: vim, neovim, nano
-- **Terminal**: tmux, screen, xterm
 
 ## Embedded profile usage
 

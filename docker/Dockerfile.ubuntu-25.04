@@ -1,10 +1,7 @@
 # syntax=docker/dockerfile:1.4
-FROM --platform=linux/amd64 ubuntu:25.04
+FROM --platform=linux/amd64 ubuntu:25.04 AS base
 
 ARG DEBIAN_FRONTEND=noninteractive
-ARG UBUNTU_MIRROR
-ARG UBUNTU_COMPONENTS="main restricted"
-ARG UBUNTU_SUITES="plucky plucky-updates plucky-security"
 
 # Proxy arguments
 ARG http_proxy
@@ -19,7 +16,7 @@ ARG ALL_PROXY
 ARG NO_PROXY
 
 # =============================================================================
-# Ubuntu 25.04 — Embedded Linux build environment (Buildroot, Yocto, OpenWrt)
+# Stage 1: Base build environment (Buildroot, Yocto, OpenWrt)
 # =============================================================================
 
 RUN set -eux; \
@@ -32,46 +29,34 @@ RUN set -eux; \
     echo "dash dash/sh boolean false" | debconf-set-selections; \
     dpkg-reconfigure -f noninteractive dash
 
-RUN set -eux; \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    set -eux; \
     apt-get update && \
     apt-get install -y --no-install-recommends \
-        apt-utils \
-        autoconf \
-        automake \
         bc \
         bison \
         build-essential \
         chrpath \
-        corkscrew \
         cpio \
         curl \
         debianutils \
-        debootstrap \
         device-tree-compiler \
-        dfu-util \
-        dialog \
         diffstat \
-        dos2unix \
-        dosfstools \
-        doxygen \
-        fdisk \
         file \
         flex \
-        g++-multilib \
         gawk \
-        gcc \
         gcc-multilib \
         gettext \
         git \
         git-lfs \
+        gosu \
         help2man \
         iproute2 \
         iputils-ping \
         jq \
-        libacl1 \
-        libc6-dev-i386 \
         libegl-dev \
-        libgnutls28-dev \
+        libelf-dev \
         libncurses-dev \
         libnl-3-dev \
         libnl-route-3-dev \
@@ -81,24 +66,12 @@ RUN set -eux; \
         locales \
         lz4 \
         mesa-common-dev \
-        mono-complete \
-        mono-devel \
-        nano \
-        neovim \
         net-tools \
         pigz \
-        pseudo \
-        pylint \
         python3 \
         python3-dev \
-        python3-git \
-        python3-jinja2 \
-        python3-pexpect \
         python3-pip \
-        python3-sphinx \
-        python3-subunit \
-        qemu-user-static \
-        repo \
+        python-is-python3 \
         rsync \
         socat \
         subversion \
@@ -106,19 +79,16 @@ RUN set -eux; \
         swig \
         texinfo \
         time \
-        tmux \
         u-boot-tools \
         unzip \
         usbutils \
-        vim \
+        uuid-dev \
         wget \
-        xterm \
         xxd \
         xz-utils \
         zip \
         zlib1g-dev \
         zstd \
-    && rm -rf /var/lib/apt/lists/* \
     && rm -f /etc/apt/apt.conf.d/99proxy /etc/apt/apt.conf.d/99force-ipv4
 
 RUN set -eux; \
@@ -127,25 +97,63 @@ RUN set -eux; \
         Mako \
         pyelftools \
         PyYAML \
-        yamllint \
     && rm -rf /root/.cache/pip
 
 RUN set -eux; \
-    curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR="/usr/local/bin" UV_NO_MODIFY_PATH=1 sh
-
-RUN set -eux; \
-    locale-gen en_US en_US.UTF-8
+    locale-gen en_US.UTF-8
 
 ENV LC_ALL="en_US.UTF-8" \
     LC_CTYPE="en_US.UTF-8" \
     LC_NUMERIC="en_US.UTF-8"
-
-RUN set -eux; \
-    curl -fsSL https://github.com/tianon/gosu/releases/download/1.17/gosu-amd64 -o /usr/local/bin/gosu && \
-    chmod +x /usr/local/bin/gosu
 
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 WORKDIR /workspace
 ENTRYPOINT ["entrypoint.sh"]
 CMD ["bash"]
+
+
+# =============================================================================
+# Stage 2: Embedded profile (RTOS SDK development tools)
+# =============================================================================
+FROM base AS embedded
+
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    set -eux; \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        ccache \
+        cmake \
+        gperf \
+        libmagic1 \
+        libsdl2-dev \
+        ninja-build \
+        python3-tk \
+        python3-venv \
+        python3-wheel \
+        # X11/Qt libraries for GUI tools & QEMU emulation
+        libxrandr2 \
+        libfreetype6-dev \
+        libsm6 \
+        libxfixes3 \
+        libxcursor-dev \
+        libxcb-render-util0 \
+        libxcb-randr0 \
+        libxcb-shape0 \
+        libxcb-image0 \
+        libxkbcommon-x11-0 \
+        libx11-xcb1 \
+        libxcb-icccm4 \
+        libxcb-sync1 \
+        libxcb-keysyms1 \
+        libxcb-xfixes0 \
+        libglib2.0-0
+
+RUN set -eux; \
+    pip3 install --no-cache-dir --break-system-packages \
+        patool \
+        semver \
+        tqdm \
+        west \
+    && rm -rf /root/.cache/pip
