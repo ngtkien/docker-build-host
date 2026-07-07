@@ -361,6 +361,12 @@ else
   echo -e "${CYAN}🚀  Launching container (workspace mounted at /workspace) ...${RESET}\n"
 fi
 
+# Mount host's git config if it exists
+GITCONFIG_MOUNT=()
+if [ -f "${HOME}/.gitconfig" ]; then
+  GITCONFIG_MOUNT=(-v "${HOME}/.gitconfig:/home/builder/.gitconfig:ro")
+fi
+
 # Run Docker container with HOST_UID & HOST_GID set to align builder user permissions
 $DOCKER_CMD run \
   --rm -it \
@@ -369,5 +375,6 @@ $DOCKER_CMD run \
   -e HOST_GID="$(id -g)" \
   ${PROXY_RUN_ARGS[@]+"${PROXY_RUN_ARGS[@]}"} \
   -v "${WORKSPACE_DIR}:/workspace" \
+  ${GITCONFIG_MOUNT[@]+"${GITCONFIG_MOUNT[@]}"} \
   ${EXTRA_MOUNTS[@]+"${EXTRA_MOUNTS[@]}"} \
   "$IMAGE_TAG"

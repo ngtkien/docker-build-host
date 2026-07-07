@@ -91,6 +91,10 @@ RUN set -eux; \
 RUN set -eux; \
     locale-gen en_US.UTF-8
 
+RUN set -eux; \
+    curl -o /usr/local/bin/repo https://storage.googleapis.com/git-repo-downloads/repo; \
+    chmod a+x /usr/local/bin/repo
+
 ENV LC_ALL="en_US.UTF-8" \
     LANG="en_US.UTF-8" \
     LC_CTYPE="en_US.UTF-8" \
