@@ -374,7 +374,7 @@ $DOCKER_CMD run \
   -e HOST_UID="$(id -u)" \
   -e HOST_GID="$(id -g)" \
   ${PROXY_RUN_ARGS[@]+"${PROXY_RUN_ARGS[@]}"} \
-  -v "${WORKSPACE_DIR}:/workspace" \
+  -v "${WORKSPACE_DIR}:/w" \
   ${GITCONFIG_MOUNT[@]+"${GITCONFIG_MOUNT[@]}"} \
   ${EXTRA_MOUNTS[@]+"${EXTRA_MOUNTS[@]}"} \
   "$IMAGE_TAG"

@@ -106,7 +106,7 @@ ENV LC_ALL="en_US.UTF-8" \
 
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
-WORKDIR /workspace
+WORKDIR /w
 ENTRYPOINT ["entrypoint.sh"]
 CMD ["bash"]
 
